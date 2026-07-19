@@ -1,7 +1,18 @@
 const DEFAULT_SETTINGS = {
+  inventreeSyncMode: "plugin",
   inventreeUrl: "",
   inventreeToken: "",
   inventreeEndpointPath: "/api/plugin/product-import/",
+  inventreePartApiPath: "/api/part/",
+  inventreeSupplierPartApiPath: "/api/company/part/",
+  inventreeStockItemApiPath: "/api/stock/",
+  inventreeDefaultCategoryId: "",
+  inventreeDefaultSupplierId: "",
+  inventreeDefaultLocationId: "",
+  stockQuantityHeaderHint: "",
+  defaultStockQuantity: "",
+  syncSupplierParts: true,
+  syncStockRecords: false,
   sourceMode: "auto",
   crawlLinkedPages: true,
   maxLinkedPages: 20,
@@ -127,80 +138,19 @@ async function handleMessage(message) {
         return { ok: false, error: "API token is required." };
       }
 
-      const payload = buildExportObject(capture, merged);
-      const filtered = await applyExistingMatchStrategy(payload.items, merged);
-      payload.items = filtered.items;
-      payload.item_count = payload.items.length;
-      payload.options = {
-        existing_match_strategy: merged.existingMatchStrategy,
-        skipped_existing: filtered.skippedExisting,
-        matched_for_update: filtered.matchedForUpdate
-      };
-      const url = new URL(merged.inventreeEndpointPath || "/api/plugin/product-import/", merged.inventreeUrl).toString();
+      const syncMode = merged.inventreeSyncMode === "direct" ? "direct" : "plugin";
+      const result = syncMode === "direct"
+        ? await sendDirectToInventree(capture, merged)
+        : await sendToInventreePluginEndpoint(capture, merged);
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${merged.inventreeToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
+      return result;
+    }
 
-      const text = await response.text();
-      await chrome.storage.local.set({
-        [LAST_SEND_RESPONSE_KEY]: {
-          capturedAt: new Date().toISOString(),
-          endpoint: url,
-          status: response.status,
-          ok: response.ok,
-          bodyText: String(text || "").slice(0, 500000)
-        }
-      });
-      if (!response.ok) {
-        const snippet = (text || "").slice(0, 300);
-        return {
-          ok: false,
-          error: `HTTP ${response.status}: ${snippet || "request failed"}`
-        };
-      }
-
-      let uploadedImages = 0;
-      let skippedImages = 0;
-      let imageUploadNote = "";
-
-      if (merged.uploadImagesIfSupported && merged.includeImageUrls) {
-        const responseJson = tryParseJson(text);
-        const partIds = extractCreatedPartIds(responseJson, merged.partIdResponsePath);
-        if (partIds.length === 0) {
-          imageUploadNote = "No part IDs found in response, skipped image upload.";
-        } else {
-          const result = await tryUploadImagesToParts({
-            baseUrl: merged.inventreeUrl,
-            token: merged.inventreeToken,
-            uploadPathTemplate: merged.partImageUploadPath,
-            partIds,
-            items: payload.items
-          });
-          uploadedImages = result.uploaded;
-          skippedImages = result.skipped;
-          if (result.firstError) {
-            imageUploadNote = `Image upload issue: ${result.firstError}`;
-          }
-        }
-      }
-
-      return {
-        ok: true,
-        status: response.status,
-        sentCount: payload.items.length,
-        skippedExisting: filtered.skippedExisting,
-        matchedForUpdate: filtered.matchedForUpdate,
-        uploadedImages,
-        skippedImages,
-        imageUploadNote,
-        responsePreview: (text || "").slice(0, 300)
-      };
+    case "dryRunDirectSync": {
+      const incoming = sanitizeSettings(message?.settings || {});
+      const persisted = await getSettings();
+      const merged = { ...persisted, ...incoming };
+      return await runDirectSyncDryRun(merged);
     }
 
     case "testPartIdPath": {
@@ -230,18 +180,478 @@ async function handleMessage(message) {
   }
 }
 
+async function sendToInventreePluginEndpoint(capture, merged) {
+  const payload = buildExportObject(capture, merged);
+  const filtered = await applyExistingMatchStrategy(payload.items, merged);
+  payload.items = filtered.items;
+  payload.item_count = payload.items.length;
+  payload.options = {
+    existing_match_strategy: merged.existingMatchStrategy,
+    skipped_existing: filtered.skippedExisting,
+    matched_for_update: filtered.matchedForUpdate
+  };
+  const url = new URL(merged.inventreeEndpointPath || "/api/plugin/product-import/", merged.inventreeUrl).toString();
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${merged.inventreeToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+  await chrome.storage.local.set({
+    [LAST_SEND_RESPONSE_KEY]: {
+      capturedAt: new Date().toISOString(),
+      endpoint: url,
+      status: response.status,
+      ok: response.ok,
+      bodyText: String(text || "").slice(0, 500000)
+    }
+  });
+  if (!response.ok) {
+    const snippet = (text || "").slice(0, 300);
+    return {
+      ok: false,
+      error: `HTTP ${response.status}: ${snippet || "request failed"}`
+    };
+  }
+
+  let uploadedImages = 0;
+  let skippedImages = 0;
+  let imageUploadNote = "";
+
+  if (merged.uploadImagesIfSupported && merged.includeImageUrls) {
+    const responseJson = tryParseJson(text);
+    const partIds = extractCreatedPartIds(responseJson, merged.partIdResponsePath);
+    if (partIds.length === 0) {
+      imageUploadNote = "No part IDs found in response, skipped image upload.";
+    } else {
+      const result = await tryUploadImagesToParts({
+        baseUrl: merged.inventreeUrl,
+        token: merged.inventreeToken,
+        uploadPathTemplate: merged.partImageUploadPath,
+        partIds,
+        items: payload.items
+      });
+      uploadedImages = result.uploaded;
+      skippedImages = result.skipped;
+      if (result.firstError) {
+        imageUploadNote = `Image upload issue: ${result.firstError}`;
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    mode: "plugin",
+    status: response.status,
+    sentCount: payload.items.length,
+    skippedExisting: filtered.skippedExisting,
+    matchedForUpdate: filtered.matchedForUpdate,
+    uploadedImages,
+    skippedImages,
+    imageUploadNote,
+    responsePreview: (text || "").slice(0, 300)
+  };
+}
+
+async function sendDirectToInventree(capture, settings) {
+  const payload = buildExportObject(capture, settings);
+  const filtered = await applyExistingMatchStrategy(payload.items, settings);
+  const items = filtered.items;
+
+  if (items.length === 0) {
+    return {
+      ok: true,
+      mode: "direct",
+      status: 200,
+      sentCount: 0,
+      skippedExisting: filtered.skippedExisting,
+      matchedForUpdate: filtered.matchedForUpdate,
+      createdParts: 0,
+      updatedParts: 0,
+      failedParts: 0,
+      syncedSupplierParts: 0,
+      createdStockItems: 0,
+      uploadedImages: 0,
+      skippedImages: 0,
+      imageUploadNote: ""
+    };
+  }
+
+  const categoryId = parsePositiveInt(settings.inventreeDefaultCategoryId);
+  if (!categoryId) {
+    return { ok: false, error: "Direct API mode requires a Default Category ID." };
+  }
+
+  const supplierId = parsePositiveInt(settings.inventreeDefaultSupplierId);
+  const locationId = parsePositiveInt(settings.inventreeDefaultLocationId);
+
+  let createdParts = 0;
+  let updatedParts = 0;
+  let failedParts = 0;
+  let syncedSupplierParts = 0;
+  let createdStockItems = 0;
+  let firstIssue = "";
+
+  const imageItems = [];
+  const imagePartIds = [];
+
+  for (const item of items) {
+    try {
+      const result = await createOrUpdatePartInDirectMode(item, settings, categoryId);
+      if (!result.ok || !result.partId) {
+        failedParts += 1;
+        if (!firstIssue && result.error) firstIssue = result.error;
+        continue;
+      }
+
+      if (result.action === "update") {
+        updatedParts += 1;
+      } else {
+        createdParts += 1;
+      }
+
+      if (settings.syncSupplierParts && supplierId) {
+        const syncResult = await upsertSupplierPartForDirectMode(result.partId, supplierId, item, settings);
+        if (syncResult.ok) {
+          syncedSupplierParts += 1;
+        } else if (!firstIssue && syncResult.error) {
+          firstIssue = syncResult.error;
+        }
+      }
+
+      if (settings.syncStockRecords && locationId) {
+        const stockResult = await createStockItemForDirectMode(result.partId, locationId, item, settings);
+        if (stockResult.created) {
+          createdStockItems += 1;
+        } else if (stockResult.error && !firstIssue) {
+          firstIssue = stockResult.error;
+        }
+      }
+
+      imagePartIds.push(result.partId);
+      imageItems.push(item);
+    } catch (error) {
+      failedParts += 1;
+      if (!firstIssue) {
+        firstIssue = String(error?.message || error);
+      }
+    }
+  }
+
+  let uploadedImages = 0;
+  let skippedImages = 0;
+  let imageUploadNote = "";
+  if (settings.uploadImagesIfSupported && settings.includeImageUrls && imagePartIds.length > 0) {
+    const uploadResult = await tryUploadImagesToParts({
+      baseUrl: settings.inventreeUrl,
+      token: settings.inventreeToken,
+      uploadPathTemplate: settings.partImageUploadPath,
+      partIds: imagePartIds,
+      items: imageItems
+    });
+    uploadedImages = uploadResult.uploaded;
+    skippedImages = uploadResult.skipped;
+    if (uploadResult.firstError) {
+      imageUploadNote = uploadResult.firstError;
+    }
+  }
+
+  const status = failedParts > 0 ? 207 : 200;
+  const responseSummary = {
+    mode: "direct",
+    status,
+    sentCount: items.length,
+    skippedExisting: filtered.skippedExisting,
+    matchedForUpdate: filtered.matchedForUpdate,
+    createdParts,
+    updatedParts,
+    failedParts,
+    syncedSupplierParts,
+    createdStockItems,
+    uploadedImages,
+    skippedImages,
+    imageUploadNote,
+    issue: firstIssue
+  };
+
+  await chrome.storage.local.set({
+    [LAST_SEND_RESPONSE_KEY]: {
+      capturedAt: new Date().toISOString(),
+      endpoint: "direct-api",
+      status,
+      ok: true,
+      bodyText: JSON.stringify(responseSummary)
+    }
+  });
+
+  return {
+    ok: true,
+    ...responseSummary
+  };
+}
+
+async function runDirectSyncDryRun(settings) {
+  const checks = [];
+
+  if (settings.inventreeSyncMode !== "direct") {
+    checks.push({ ok: false, label: "Sync mode", message: "Dry-run is only for Direct InvenTree API mode." });
+    return { ok: true, checks };
+  }
+
+  checks.push({ ok: Boolean(settings.inventreeUrl), label: "InvenTree Base URL", message: settings.inventreeUrl ? "Configured" : "Required" });
+  checks.push({ ok: Boolean(settings.inventreeToken), label: "API token", message: settings.inventreeToken ? "Configured" : "Required" });
+
+  const categoryId = parsePositiveInt(settings.inventreeDefaultCategoryId);
+  checks.push({
+    ok: Boolean(categoryId),
+    label: "Default Category ID",
+    message: categoryId ? `Configured (${categoryId})` : "Required for direct part creation"
+  });
+
+  const supplierId = parsePositiveInt(settings.inventreeDefaultSupplierId);
+  if (settings.syncSupplierParts) {
+    checks.push({
+      ok: Boolean(supplierId),
+      label: "Default Supplier ID",
+      message: supplierId ? `Configured (${supplierId})` : "Required when supplier-part sync is enabled"
+    });
+  }
+
+  const locationId = parsePositiveInt(settings.inventreeDefaultLocationId);
+  if (settings.syncStockRecords) {
+    checks.push({
+      ok: Boolean(locationId),
+      label: "Default Stock Location ID",
+      message: locationId ? `Configured (${locationId})` : "Required when stock sync is enabled"
+    });
+  }
+
+  const quantity = Number(String(settings.defaultStockQuantity || "").trim());
+  if (settings.syncStockRecords) {
+    checks.push({
+      ok: Number.isFinite(quantity) ? quantity > 0 : Boolean(String(settings.stockQuantityHeaderHint || "").trim()),
+      label: "Stock quantity source",
+      message: "Provide a positive default stock quantity or stock quantity header hint"
+    });
+  }
+
+  if (!settings.inventreeUrl || !settings.inventreeToken) {
+    return { ok: true, checks };
+  }
+
+  const probeTargets = [
+    { label: "Part API path", path: settings.inventreePartApiPath }
+  ];
+  if (settings.syncSupplierParts && supplierId) {
+    probeTargets.push({ label: "Supplier Part API path", path: settings.inventreeSupplierPartApiPath });
+  }
+  if (settings.syncStockRecords && locationId) {
+    probeTargets.push({ label: "Stock Item API path", path: settings.inventreeStockItemApiPath });
+  }
+
+  for (const target of probeTargets) {
+    const endpoint = new URL(target.path, settings.inventreeUrl);
+    endpoint.searchParams.set("limit", "1");
+    try {
+      const response = await fetch(endpoint.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Token ${settings.inventreeToken}`
+        }
+      });
+      checks.push({
+        ok: response.ok,
+        label: target.label,
+        message: response.ok ? `Reachable (${response.status})` : `HTTP ${response.status}`
+      });
+    } catch (error) {
+      checks.push({
+        ok: false,
+        label: target.label,
+        message: String(error?.message || error)
+      });
+    }
+  }
+
+  return { ok: true, checks };
+}
+
+async function createOrUpdatePartInDirectMode(item, settings, categoryId) {
+  const existingPartId = parsePositiveInt(item.existing_part_id);
+  const shouldUpdate = item.sync_action === "update" && existingPartId;
+  const ipn = String(item.supplier_part_number || item.mpn || "").trim();
+  const partBody = {
+    name: String(item.name || "").trim() || "Imported Product",
+    description: String(item.description || "").trim(),
+    category: categoryId,
+    IPN: ipn
+  };
+
+  if (shouldUpdate) {
+    const patchBody = {
+      name: partBody.name,
+      description: partBody.description,
+      IPN: partBody.IPN
+    };
+    const response = await inventreeApiRequest(settings, "PATCH", `${trimTrailingSlash(settings.inventreePartApiPath)}/${existingPartId}/`, patchBody);
+    if (!response.ok) {
+      const text = await response.text();
+      return { ok: false, error: `Part update failed (${response.status}): ${text.slice(0, 200)}` };
+    }
+    return { ok: true, action: "update", partId: existingPartId };
+  }
+
+  const response = await inventreeApiRequest(settings, "POST", settings.inventreePartApiPath, partBody);
+  if (!response.ok) {
+    const text = await response.text();
+    return { ok: false, error: `Part create failed (${response.status}): ${text.slice(0, 200)}` };
+  }
+
+  const created = await response.json();
+  const partId = parsePositiveInt(created?.pk ?? created?.id);
+  if (!partId) {
+    return { ok: false, error: "Part create succeeded but no part ID was returned." };
+  }
+
+  return { ok: true, action: "create", partId };
+}
+
+async function upsertSupplierPartForDirectMode(partId, supplierId, item, settings) {
+  const sku = String(item.supplier_part_number || "").trim();
+  if (!sku) {
+    return { ok: false, error: "Supplier part sync skipped because supplier part number is empty." };
+  }
+
+  const searchUrl = new URL(settings.inventreeSupplierPartApiPath, settings.inventreeUrl);
+  searchUrl.searchParams.set("part", String(partId));
+  searchUrl.searchParams.set("supplier", String(supplierId));
+  const lookup = await fetch(searchUrl.toString(), {
+    headers: {
+      Authorization: `Token ${settings.inventreeToken}`
+    }
+  });
+
+  if (!lookup.ok) {
+    const text = await lookup.text();
+    return { ok: false, error: `Supplier part lookup failed (${lookup.status}): ${text.slice(0, 200)}` };
+  }
+
+  const lookupJson = await lookup.json();
+  const existingList = Array.isArray(lookupJson) ? lookupJson : Array.isArray(lookupJson?.results) ? lookupJson.results : [];
+  const existing = existingList.find((row) => String(row?.SKU || "").trim() === sku) || existingList[0];
+
+  const body = {
+    part: partId,
+    supplier: supplierId,
+    SKU: sku,
+    MPN: String(item.mpn || "").trim(),
+    link: String(item.supplier_link || "").trim(),
+    description: String(item.description || "").trim()
+  };
+
+  const endpoint = existing?.pk || existing?.id
+    ? `${trimTrailingSlash(settings.inventreeSupplierPartApiPath)}/${existing.pk ?? existing.id}/`
+    : settings.inventreeSupplierPartApiPath;
+  const method = existing?.pk || existing?.id ? "PATCH" : "POST";
+  const response = await inventreeApiRequest(settings, method, endpoint, body);
+  if (!response.ok) {
+    const text = await response.text();
+    return { ok: false, error: `Supplier part sync failed (${response.status}): ${text.slice(0, 200)}` };
+  }
+
+  return { ok: true };
+}
+
+async function createStockItemForDirectMode(partId, locationId, item, settings) {
+  const quantity = parseQuantityForDirectMode(item, settings);
+  if (!(quantity > 0)) {
+    return { created: false };
+  }
+
+  const body = {
+    part: partId,
+    location: locationId,
+    quantity
+  };
+  const response = await inventreeApiRequest(settings, "POST", settings.inventreeStockItemApiPath, body);
+  if (!response.ok) {
+    const text = await response.text();
+    return { created: false, error: `Stock item create failed (${response.status}): ${text.slice(0, 200)}` };
+  }
+
+  return { created: true };
+}
+
+function parseQuantityForDirectMode(item, settings) {
+  const hinted = pickValue(item.raw || {}, [settings.stockQuantityHeaderHint]);
+  const hintedNumber = Number(String(hinted || "").replace(/[^0-9.\-]/g, ""));
+  if (Number.isFinite(hintedNumber) && hintedNumber > 0) {
+    return hintedNumber;
+  }
+
+  const fallback = Number(String(settings.defaultStockQuantity || "").trim());
+  if (Number.isFinite(fallback) && fallback > 0) {
+    return fallback;
+  }
+
+  return 0;
+}
+
+async function inventreeApiRequest(settings, method, path, body) {
+  const url = new URL(path, settings.inventreeUrl).toString();
+  const options = {
+    method,
+    headers: {
+      Authorization: `Token ${settings.inventreeToken}`,
+      "Content-Type": "application/json"
+    }
+  };
+
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+
+  return await fetch(url, options);
+}
+
+function parsePositiveInt(value) {
+  const num = Number(String(value ?? "").trim());
+  return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function trimTrailingSlash(path) {
+  return String(path || "").replace(/\/+$/, "");
+}
+
 async function getSettings() {
   const data = await chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS));
   return sanitizeSettings({ ...DEFAULT_SETTINGS, ...data });
 }
 
 function sanitizeSettings(input) {
+  const inventreeSyncMode = String(input.inventreeSyncMode || "plugin").trim().toLowerCase();
   const sourceMode = String(input.sourceMode || "auto").trim().toLowerCase();
   const sourceModeSafe = ["auto", "mcmaster", "boltdepot", "amazon"].includes(sourceMode) ? sourceMode : "auto";
   return {
+    inventreeSyncMode: inventreeSyncMode === "direct" ? "direct" : "plugin",
     inventreeUrl: String(input.inventreeUrl || "").trim(),
     inventreeToken: String(input.inventreeToken || "").trim(),
-    inventreeEndpointPath: normalizePath(input.inventreeEndpointPath || "/api/plugin/product-import/"),
+    inventreeEndpointPath: normalizePath(input.inventreeEndpointPath, "/api/plugin/product-import/"),
+    inventreePartApiPath: normalizePath(input.inventreePartApiPath, "/api/part/"),
+    inventreeSupplierPartApiPath: normalizePath(input.inventreeSupplierPartApiPath, "/api/company/part/"),
+    inventreeStockItemApiPath: normalizePath(input.inventreeStockItemApiPath, "/api/stock/"),
+    inventreeDefaultCategoryId: String(input.inventreeDefaultCategoryId || "").trim(),
+    inventreeDefaultSupplierId: String(input.inventreeDefaultSupplierId || "").trim(),
+    inventreeDefaultLocationId: String(input.inventreeDefaultLocationId || "").trim(),
+    stockQuantityHeaderHint: String(input.stockQuantityHeaderHint || "").trim(),
+    defaultStockQuantity: String(input.defaultStockQuantity || "").trim(),
+    syncSupplierParts: input.syncSupplierParts !== false,
+    syncStockRecords: Boolean(input.syncStockRecords),
     sourceMode: sourceModeSafe,
     crawlLinkedPages: Boolean(input.crawlLinkedPages),
     maxLinkedPages: Math.min(80, Math.max(1, Number(input.maxLinkedPages || 20))),
@@ -252,14 +662,15 @@ function sanitizeSettings(input) {
     imageHeaderHint: String(input.imageHeaderHint || "").trim(),
     includeImageUrls: Boolean(input.includeImageUrls),
     uploadImagesIfSupported: Boolean(input.uploadImagesIfSupported),
-    partImageUploadPath: normalizePath(String(input.partImageUploadPath || "/api/part/{id}/upload/").trim()),
+    partImageUploadPath: normalizePath(input.partImageUploadPath, "/api/part/{id}/upload/"),
     partIdResponsePath: String(input.partIdResponsePath || "").trim(),
     existingMatchStrategy: input.existingMatchStrategy === "update" ? "update" : "skip"
   };
 }
 
-function normalizePath(value) {
-  const path = String(value || "").trim() || "/api/plugin/product-import/";
+function normalizePath(value, defaultPath) {
+  const fallback = String(defaultPath || "/").trim() || "/";
+  const path = String(value || "").trim() || fallback;
   return path.startsWith("/") ? path : `/${path}`;
 }
 

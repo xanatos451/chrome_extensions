@@ -5,6 +5,7 @@ Captures product table rows from supplier catalog pages and lets you:
 - Download captured data as JSON
 - Download captured data as CSV
 - Send captured data to an InvenTree API endpoint
+- Sync directly into local InvenTree via standard API endpoints
 - Optionally map and include per-product image URLs
 - Optionally upload images to InvenTree when part IDs are returned by the endpoint
 
@@ -59,9 +60,8 @@ Notes:
 6. To choose child pages, use the filter box, Select All/Clear All, Select Filtered/Clear Filtered, Invert Visible, and individual checkboxes.
 7. Click **Capture Current Page**.
 8. Review the row count and preview.
-9. Either:
-   - Click **Download JSON** or **Download CSV**, or
-   - Fill InvenTree URL/token/endpoint and click **Send To InvenTree**.
+9. Click **Download JSON** or **Download CSV** for file export.
+10. Configure InvenTree sync settings and click **Send To InvenTree** for API sync.
 
 ## Supported Sources
 
@@ -74,12 +74,42 @@ Notes:
 
 ## InvenTree Endpoint Notes
 
+The extension supports two sync modes:
+
+- `Plugin Endpoint`: posts one payload to your configured plugin endpoint.
+- `Direct InvenTree API`: creates/updates parts directly using standard InvenTree API routes.
+
 The extension posts a JSON payload to your configured endpoint path.
 Default endpoint path is:
 
 - `/api/plugin/product-import/`
 
 You can change it to any path that accepts your payload.
+
+## Direct InvenTree API Sync
+
+When `Sync Mode` is set to `Direct InvenTree API`, the extension can:
+
+- Create new parts under a configured default category.
+- Update matching parts when `Existing Match Strategy` is set to update.
+- Optionally sync supplier-part records.
+- Optionally create stock records at a configured stock location.
+- Optionally upload product images to created/updated parts.
+
+### Direct Mode Settings
+
+- `InvenTree Base URL`: your local/self-hosted InvenTree URL.
+- `API Token`: token with part/company/stock write permissions.
+- `Part API Path`: default `/api/part/`.
+- `Supplier Part API Path`: default `/api/company/part/`.
+- `Stock Item API Path`: default `/api/stock/`.
+- `Default Category ID`: required for direct part creation.
+- `Default Supplier ID`: optional; required if supplier-part sync is enabled.
+- `Default Stock Location ID`: optional; required if stock sync is enabled.
+- `Stock Quantity Header Hint`: optional source column name for quantity.
+- `Default Stock Quantity`: fallback quantity when header hint is empty/missing.
+- `Sync supplier-part records in direct mode`: creates/updates supplier part entries.
+- `Create stock items in direct mode`: creates stock item entries.
 
 ### Authorization Header
 
@@ -163,4 +193,5 @@ The extension also applies fallback header names when hints are blank.
 
 - Extraction targets the most likely product table on each page using heuristics.
 - If a page has unusual structure, row capture may need adjustment.
-- Direct creation of InvenTree parts is intentionally not hard-coded; this extension sends a flexible payload suitable for a plugin or import step.
+- Direct API sync relies on your InvenTree model permissions and API schema compatibility.
+- Plugin mode remains available for custom import logic and server-side transformations.

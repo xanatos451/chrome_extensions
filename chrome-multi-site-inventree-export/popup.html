@@ -221,6 +221,97 @@
       padding: 7px 8px;
       font-size: 11px;
     }
+
+    .help-wrap {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef8;
+      overflow: hidden;
+    }
+
+    .help-wrap summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #f8f2e6;
+      border-bottom: 1px solid #e2d8c8;
+      user-select: none;
+    }
+
+    .help-body {
+      max-height: 240px;
+      overflow: auto;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #2f454d;
+      line-height: 1.45;
+    }
+
+    .help-body h3 {
+      margin: 10px 0 4px;
+      font-size: 12px;
+    }
+
+    .help-body p,
+    .help-body ul,
+    .help-body ol {
+      margin: 4px 0 8px;
+      padding-left: 16px;
+    }
+
+    .help-body code,
+    .help-body pre {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10px;
+    }
+
+    .help-body pre {
+      background: #f4efe3;
+      border: 1px solid #e2d8c8;
+      border-radius: 6px;
+      padding: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .dryrun-wrap {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef8;
+      padding: 8px;
+      display: none;
+    }
+
+    .dryrun-wrap.visible {
+      display: block;
+    }
+
+    .dryrun-title {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #32474f;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .dryrun-item {
+      font-size: 11px;
+      margin-bottom: 4px;
+      color: #2f454d;
+      line-height: 1.35;
+    }
+
+    .dryrun-item.pass {
+      color: #1f6a49;
+    }
+
+    .dryrun-item.fail {
+      color: #8a1e2b;
+    }
   </style>
 </head>
 <body>
@@ -232,6 +323,9 @@
       <div class="grid">
         <button id="captureBtn" type="button">Capture Current Page</button>
         <button id="saveSettingsBtn" class="secondary" type="button">Save API Settings</button>
+      </div>
+      <div style="margin-top:8px;">
+        <button id="helpBtn" class="secondary" type="button">Help / Docs</button>
       </div>
 
       <div class="label">Capture Source</div>
@@ -267,14 +361,41 @@
     </div>
 
     <div class="section">
+      <div class="label">Sync Mode</div>
+      <select id="inventreeSyncMode">
+        <option value="plugin">Plugin Endpoint (existing workflow)</option>
+        <option value="direct">Direct InvenTree API (local sync)</option>
+      </select>
+
       <div class="label">InvenTree Base URL</div>
       <input id="inventreeUrl" type="text" placeholder="https://inventree.example.com" />
 
       <div class="label">API Token</div>
       <input id="inventreeToken" type="password" placeholder="Token value" />
 
-      <div class="label">Endpoint Path</div>
+      <div class="label">Plugin Endpoint Path</div>
       <input id="inventreeEndpointPath" type="text" placeholder="/api/plugin/product-import/" />
+
+      <div class="label">Direct API Paths</div>
+      <div class="grid">
+        <input id="inventreePartApiPath" type="text" placeholder="/api/part/" />
+        <input id="inventreeSupplierPartApiPath" type="text" placeholder="/api/company/part/" />
+      </div>
+      <input id="inventreeStockItemApiPath" type="text" placeholder="/api/stock/" />
+
+      <div class="label">Direct Sync Defaults</div>
+      <div class="grid">
+        <input id="inventreeDefaultCategoryId" type="number" min="1" placeholder="Default category ID (required for direct create)" />
+        <input id="inventreeDefaultSupplierId" type="number" min="1" placeholder="Default supplier ID (optional)" />
+      </div>
+      <div class="grid">
+        <input id="inventreeDefaultLocationId" type="number" min="1" placeholder="Default stock location ID (optional)" />
+        <input id="defaultStockQuantity" type="number" min="0" step="0.001" placeholder="Default stock quantity (e.g. 1)" />
+      </div>
+      <input id="stockQuantityHeaderHint" type="text" placeholder="Stock quantity header hint (optional, e.g. Qty, Quantity)" />
+
+      <label class="check"><input id="syncSupplierParts" type="checkbox" /> Sync supplier-part records in direct mode</label>
+      <label class="check"><input id="syncStockRecords" type="checkbox" /> Create stock items in direct mode</label>
 
       <div class="label">Header Mapping Hints</div>
       <div class="grid">
@@ -310,13 +431,136 @@
       <div style="margin-top: 8px;">
         <button id="csvBtn" class="secondary" type="button">Download CSV</button>
       </div>
+      <div style="margin-top: 8px;">
+        <button id="dryRunBtn" class="secondary" type="button">Direct Mode Dry-Run Validation</button>
+      </div>
     </div>
 
     <div id="status" class="status"></div>
+    <div id="dryRunDetails" class="dryrun-wrap">
+      <div class="dryrun-title">Direct Dry-Run Details</div>
+      <div id="dryRunDetailsList"></div>
+    </div>
 
     <div class="section">
       <div class="label">Preview (first 5 rows)</div>
       <div class="preview" id="preview"></div>
+    </div>
+
+    <div class="section">
+      <div class="help-wrap">
+        <details id="helpPanel">
+          <summary>Extension Help and Configuration Guide</summary>
+          <div class="help-body">
+            <h3>Quick Start</h3>
+            <ol>
+              <li>Pick Sync Mode based on your workflow (Plugin Endpoint or Direct API).</li>
+              <li>Enter InvenTree Base URL and API Token.</li>
+              <li>For direct mode, set Default Category ID at minimum.</li>
+              <li>Capture a page, review preview rows, then Send To InvenTree.</li>
+              <li>Use Direct Mode Dry-Run Validation before your first sync.</li>
+            </ol>
+            <div class="grid">
+              <button id="copyPluginExampleBtn" class="secondary mini" type="button">Copy Plugin Example</button>
+              <button id="copyDirectExampleBtn" class="secondary mini" type="button">Copy Direct Example</button>
+            </div>
+
+            <h3>What This Extension Does</h3>
+            <ul>
+              <li>Captures product rows from supported supplier pages.</li>
+              <li>Exports captured rows to JSON or CSV files.</li>
+              <li>Sends captured data to InvenTree using Plugin Endpoint mode or Direct API mode.</li>
+              <li>Optionally syncs images, supplier-part records, and stock records.</li>
+            </ul>
+
+            <h3>Basic Workflow</h3>
+            <ol>
+              <li>Open a supported source page.</li>
+              <li>Click Capture Current Page.</li>
+              <li>Review captured rows in the preview area.</li>
+              <li>Either download JSON/CSV or click Send To InvenTree.</li>
+            </ol>
+
+            <h3>Sync Mode</h3>
+            <ul>
+              <li>Plugin Endpoint: Sends one payload to your custom endpoint path.</li>
+              <li>Direct InvenTree API: Creates/updates parts directly via native InvenTree API routes.</li>
+            </ul>
+
+            <h3>Core InvenTree Settings</h3>
+            <ul>
+              <li>InvenTree Base URL: e.g. https://inventree.local or https://inventree.example.com</li>
+              <li>API Token: personal or service token with create/update permissions.</li>
+              <li>Plugin Endpoint Path: used only in Plugin Endpoint mode.</li>
+            </ul>
+
+            <h3>Direct API Settings</h3>
+            <ul>
+              <li>Part API Path: default /api/part/</li>
+              <li>Supplier Part API Path: default /api/company/part/</li>
+              <li>Stock Item API Path: default /api/stock/</li>
+              <li>Default Category ID: required in direct mode to create new parts.</li>
+              <li>Default Supplier ID: needed when syncing supplier-part records.</li>
+              <li>Default Stock Location ID: needed when creating stock items.</li>
+              <li>Stock Quantity Header Hint: optional source column for quantity (for example Qty).</li>
+              <li>Default Stock Quantity: fallback quantity when no value is found from source data.</li>
+            </ul>
+
+            <h3>Header Mapping Hints</h3>
+            <p>Use these to map uncommon source table headers:</p>
+            <ul>
+              <li>Name header</li>
+              <li>Description header</li>
+              <li>MPN header</li>
+              <li>Supplier PN header</li>
+              <li>Image URL header</li>
+            </ul>
+
+            <h3>Images</h3>
+            <ul>
+              <li>Include image URL in exported/sent items adds image_url to payload and exports.</li>
+              <li>Upload images to InvenTree uploads images when part IDs are available after sync.</li>
+              <li>Part upload path defaults to /api/part/{id}/upload/.</li>
+            </ul>
+
+            <h3>Existing Match Strategy</h3>
+            <ul>
+              <li>Skip matching existing entries: avoids duplicate updates.</li>
+              <li>Update matching existing entries: updates existing records when exact matches are found.</li>
+            </ul>
+
+            <h3>Example Config: Plugin Mode</h3>
+            <pre>Sync Mode: Plugin Endpoint
+InvenTree Base URL: https://inventree.local
+API Token: &lt;token&gt;
+Plugin Endpoint Path: /api/plugin/product-import/
+Include image URL: On
+Upload images: On</pre>
+
+            <h3>Example Config: Direct API Mode</h3>
+            <pre>Sync Mode: Direct InvenTree API
+InvenTree Base URL: https://inventree.local
+API Token: &lt;token&gt;
+Part API Path: /api/part/
+Supplier Part API Path: /api/company/part/
+Stock Item API Path: /api/stock/
+Default Category ID: 12
+Default Supplier ID: 4
+Default Stock Location ID: 7
+Default Stock Quantity: 1
+Sync supplier-part records: On
+Create stock items: Off</pre>
+
+            <h3>Troubleshooting</h3>
+            <ul>
+              <li>No rows found: verify page has a visible product table and re-capture.</li>
+              <li>401/403: token missing scope or expired.</li>
+              <li>400 on direct mode: check category/supplier/location IDs and API paths.</li>
+              <li>Image upload skipped: ensure image URLs are present and uploads are enabled.</li>
+            </ul>
+          </div>
+        </details>
+      </div>
     </div>
   </div>
 

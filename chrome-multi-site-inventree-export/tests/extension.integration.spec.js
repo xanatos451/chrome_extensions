@@ -149,3 +149,44 @@ test("previews zero linked pages on non-supported site", async () => {
 
   await popupPage.close();
 });
+
+test("opens help docs and shows quick start content", async () => {
+  const popupPage = await openPopupPage();
+
+  await popupPage.click("#helpBtn");
+  await expect(popupPage.locator("#helpPanel")).toHaveAttribute("open", "");
+  await expect(popupPage.locator("#helpPanel")).toContainText("Quick Start");
+  await expect(popupPage.locator("#helpPanel")).toContainText("Direct Mode Dry-Run Validation");
+
+  await popupPage.close();
+});
+
+test("direct mode dry-run reports missing required settings", async () => {
+  const popupPage = await openPopupPage();
+
+  await popupPage.selectOption("#inventreeSyncMode", "direct");
+  await popupPage.fill("#inventreeUrl", "");
+  await popupPage.fill("#inventreeToken", "");
+  await popupPage.fill("#inventreeDefaultCategoryId", "");
+  await popupPage.click("#dryRunBtn");
+
+  await expect(popupPage.locator("#status")).toContainText("Dry-run found issues");
+  await expect(popupPage.locator("#status")).toContainText("InvenTree Base URL");
+  await expect(popupPage.locator("#status")).toContainText("Default Category ID");
+  await expect(popupPage.locator("#dryRunDetails")).toHaveClass(/visible/);
+  await expect(popupPage.locator("#dryRunDetailsList")).toContainText("FAIL: InvenTree Base URL");
+  await expect(popupPage.locator("#dryRunDetailsList")).toContainText("FAIL: Default Category ID");
+
+  await popupPage.close();
+});
+
+test("dry-run requires direct mode", async () => {
+  const popupPage = await openPopupPage();
+
+  await popupPage.selectOption("#inventreeSyncMode", "plugin");
+  await popupPage.click("#dryRunBtn");
+  await expect(popupPage.locator("#status")).toContainText("Dry-run found issues");
+  await expect(popupPage.locator("#status")).toContainText("Sync mode");
+
+  await popupPage.close();
+});

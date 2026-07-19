@@ -1,7 +1,18 @@
 const els = {
+  inventreeSyncMode: document.getElementById("inventreeSyncMode"),
   inventreeUrl: document.getElementById("inventreeUrl"),
   inventreeToken: document.getElementById("inventreeToken"),
   inventreeEndpointPath: document.getElementById("inventreeEndpointPath"),
+  inventreePartApiPath: document.getElementById("inventreePartApiPath"),
+  inventreeSupplierPartApiPath: document.getElementById("inventreeSupplierPartApiPath"),
+  inventreeStockItemApiPath: document.getElementById("inventreeStockItemApiPath"),
+  inventreeDefaultCategoryId: document.getElementById("inventreeDefaultCategoryId"),
+  inventreeDefaultSupplierId: document.getElementById("inventreeDefaultSupplierId"),
+  inventreeDefaultLocationId: document.getElementById("inventreeDefaultLocationId"),
+  stockQuantityHeaderHint: document.getElementById("stockQuantityHeaderHint"),
+  defaultStockQuantity: document.getElementById("defaultStockQuantity"),
+  syncSupplierParts: document.getElementById("syncSupplierParts"),
+  syncStockRecords: document.getElementById("syncStockRecords"),
   sourceMode: document.getElementById("sourceMode"),
   crawlLinkedPages: document.getElementById("crawlLinkedPages"),
   maxLinkedPages: document.getElementById("maxLinkedPages"),
@@ -25,6 +36,13 @@ const els = {
   includeImageUrls: document.getElementById("includeImageUrls"),
   uploadImagesIfSupported: document.getElementById("uploadImagesIfSupported"),
   testPathBtn: document.getElementById("testPathBtn"),
+  helpBtn: document.getElementById("helpBtn"),
+  helpPanel: document.getElementById("helpPanel"),
+  copyPluginExampleBtn: document.getElementById("copyPluginExampleBtn"),
+  copyDirectExampleBtn: document.getElementById("copyDirectExampleBtn"),
+  dryRunBtn: document.getElementById("dryRunBtn"),
+  dryRunDetails: document.getElementById("dryRunDetails"),
+  dryRunDetailsList: document.getElementById("dryRunDetailsList"),
   saveSettingsBtn: document.getElementById("saveSettingsBtn"),
   captureBtn: document.getElementById("captureBtn"),
   sendBtn: document.getElementById("sendBtn"),
@@ -45,6 +63,32 @@ function setStatus(message, kind = "") {
   els.status.className = `status ${kind}`.trim();
 }
 
+function clearDryRunDetails() {
+  if (!els.dryRunDetails || !els.dryRunDetailsList) return;
+  els.dryRunDetailsList.innerHTML = "";
+  els.dryRunDetails.classList.remove("visible");
+}
+
+function renderDryRunDetails(checks) {
+  if (!els.dryRunDetails || !els.dryRunDetailsList) return;
+  if (!Array.isArray(checks) || checks.length === 0) {
+    clearDryRunDetails();
+    return;
+  }
+
+  const html = checks
+    .map((item) => {
+      const ok = Boolean(item?.ok);
+      const label = escapeHtml(item?.label || "Unnamed check");
+      const message = escapeHtml(item?.message || "");
+      return `<div class="dryrun-item ${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}: ${label}${message ? ` - ${message}` : ""}</div>`;
+    })
+    .join("");
+
+  els.dryRunDetailsList.innerHTML = html;
+  els.dryRunDetails.classList.add("visible");
+}
+
 function sendMessage(payload) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(payload, (response) => {
@@ -59,11 +103,22 @@ function sendMessage(payload) {
 
 function getHints() {
   return {
+    inventreeSyncMode: els.inventreeSyncMode.value === "direct" ? "direct" : "plugin",
     nameHeaderHint: els.nameHeaderHint.value.trim(),
     descriptionHeaderHint: els.descriptionHeaderHint.value.trim(),
     mpnHeaderHint: els.mpnHeaderHint.value.trim(),
     supplierPnHeaderHint: els.supplierPnHeaderHint.value.trim(),
     imageHeaderHint: els.imageHeaderHint.value.trim(),
+    inventreePartApiPath: els.inventreePartApiPath.value.trim() || "/api/part/",
+    inventreeSupplierPartApiPath: els.inventreeSupplierPartApiPath.value.trim() || "/api/company/part/",
+    inventreeStockItemApiPath: els.inventreeStockItemApiPath.value.trim() || "/api/stock/",
+    inventreeDefaultCategoryId: els.inventreeDefaultCategoryId.value.trim(),
+    inventreeDefaultSupplierId: els.inventreeDefaultSupplierId.value.trim(),
+    inventreeDefaultLocationId: els.inventreeDefaultLocationId.value.trim(),
+    stockQuantityHeaderHint: els.stockQuantityHeaderHint.value.trim(),
+    defaultStockQuantity: els.defaultStockQuantity.value.trim(),
+    syncSupplierParts: Boolean(els.syncSupplierParts.checked),
+    syncStockRecords: Boolean(els.syncStockRecords.checked),
     includeImageUrls: Boolean(els.includeImageUrls.checked),
     uploadImagesIfSupported: Boolean(els.uploadImagesIfSupported.checked),
     partImageUploadPath: els.partImageUploadPath.value.trim() || "/api/part/{id}/upload/",
@@ -76,9 +131,20 @@ function getHints() {
 }
 
 function applySettings(settings) {
+  els.inventreeSyncMode.value = settings.inventreeSyncMode === "direct" ? "direct" : "plugin";
   els.inventreeUrl.value = settings.inventreeUrl || "";
   els.inventreeToken.value = settings.inventreeToken || "";
   els.inventreeEndpointPath.value = settings.inventreeEndpointPath || "/api/plugin/product-import/";
+  els.inventreePartApiPath.value = settings.inventreePartApiPath || "/api/part/";
+  els.inventreeSupplierPartApiPath.value = settings.inventreeSupplierPartApiPath || "/api/company/part/";
+  els.inventreeStockItemApiPath.value = settings.inventreeStockItemApiPath || "/api/stock/";
+  els.inventreeDefaultCategoryId.value = settings.inventreeDefaultCategoryId || "";
+  els.inventreeDefaultSupplierId.value = settings.inventreeDefaultSupplierId || "";
+  els.inventreeDefaultLocationId.value = settings.inventreeDefaultLocationId || "";
+  els.stockQuantityHeaderHint.value = settings.stockQuantityHeaderHint || "";
+  els.defaultStockQuantity.value = settings.defaultStockQuantity || "";
+  els.syncSupplierParts.checked = settings.syncSupplierParts !== false;
+  els.syncStockRecords.checked = Boolean(settings.syncStockRecords);
   els.sourceMode.value = ["auto", "mcmaster", "boltdepot", "amazon"].includes(settings.sourceMode) ? settings.sourceMode : "auto";
   els.crawlLinkedPages.checked = Boolean(settings.crawlLinkedPages);
   els.maxLinkedPages.value = String(settings.maxLinkedPages || 20);
@@ -96,9 +162,20 @@ function applySettings(settings) {
 
 function collectSettingsFromForm() {
   return {
+    inventreeSyncMode: els.inventreeSyncMode.value === "direct" ? "direct" : "plugin",
     inventreeUrl: els.inventreeUrl.value.trim(),
     inventreeToken: els.inventreeToken.value.trim(),
     inventreeEndpointPath: els.inventreeEndpointPath.value.trim() || "/api/plugin/product-import/",
+    inventreePartApiPath: els.inventreePartApiPath.value.trim() || "/api/part/",
+    inventreeSupplierPartApiPath: els.inventreeSupplierPartApiPath.value.trim() || "/api/company/part/",
+    inventreeStockItemApiPath: els.inventreeStockItemApiPath.value.trim() || "/api/stock/",
+    inventreeDefaultCategoryId: els.inventreeDefaultCategoryId.value.trim(),
+    inventreeDefaultSupplierId: els.inventreeDefaultSupplierId.value.trim(),
+    inventreeDefaultLocationId: els.inventreeDefaultLocationId.value.trim(),
+    stockQuantityHeaderHint: els.stockQuantityHeaderHint.value.trim(),
+    defaultStockQuantity: els.defaultStockQuantity.value.trim(),
+    syncSupplierParts: Boolean(els.syncSupplierParts.checked),
+    syncStockRecords: Boolean(els.syncStockRecords.checked),
     ...getHints()
   };
 }
@@ -232,6 +309,7 @@ function escapeHtml(value) {
 }
 
 async function capturePage() {
+  clearDryRunDetails();
   setStatus("Capturing product table from current page...");
   const response = await sendMessage({
     type: "capturePage",
@@ -248,6 +326,7 @@ async function capturePage() {
 }
 
 async function previewLinkedPagesForCurrentPage() {
+  clearDryRunDetails();
   setStatus("Discovering linked pages from current tab...");
   const response = await sendMessage({
     type: "previewLinkedPages",
@@ -269,6 +348,7 @@ async function previewLinkedPagesForCurrentPage() {
 }
 
 async function exportData(format) {
+  clearDryRunDetails();
   if (!lastCapture || !lastCapture.rows?.length) {
     throw new Error("No captured rows. Capture a page first.");
   }
@@ -289,12 +369,13 @@ async function exportData(format) {
 }
 
 async function sendToInventree() {
+  clearDryRunDetails();
   if (!lastCapture || !lastCapture.rows?.length) {
     throw new Error("No captured rows. Capture a page first.");
   }
 
   await saveSettings();
-  setStatus("Sending payload to InvenTree endpoint...");
+  setStatus("Sending data to InvenTree...");
 
   const response = await sendMessage({
     type: "sendToInventree",
@@ -306,6 +387,16 @@ async function sendToInventree() {
     throw new Error(response?.error || "InvenTree request failed");
   }
 
+  if (response.mode === "direct") {
+    const imageMsg = response.uploadedImages || response.skippedImages
+      ? ` Images uploaded: ${response.uploadedImages || 0}, skipped: ${response.skippedImages || 0}.`
+      : "";
+    const note = response.imageUploadNote ? ` ${response.imageUploadNote}` : "";
+    const msg = `Direct sync complete. Created: ${response.createdParts || 0}, updated: ${response.updatedParts || 0}, failed: ${response.failedParts || 0}, supplier records: ${response.syncedSupplierParts || 0}, stock records: ${response.createdStockItems || 0}.${imageMsg}${note}`;
+    setStatus(msg, response.failedParts ? "" : "ok");
+    return;
+  }
+
   const imageMsg = response.uploadedImages || response.skippedImages
     ? ` Images uploaded: ${response.uploadedImages || 0}, skipped: ${response.skippedImages || 0}.`
     : "";
@@ -315,7 +406,66 @@ async function sendToInventree() {
   setStatus(msg, "ok");
 }
 
+async function runDirectDryRun() {
+  await saveSettings();
+  setStatus("Running direct mode dry-run validation...");
+  const response = await sendMessage({
+    type: "dryRunDirectSync",
+    settings: collectSettingsFromForm()
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "Dry-run validation failed");
+  }
+
+  if (!Array.isArray(response.checks) || response.checks.length === 0) {
+    clearDryRunDetails();
+    setStatus("Dry-run complete. No checks returned.");
+    return;
+  }
+
+  renderDryRunDetails(response.checks);
+
+  const failed = response.checks.filter((item) => item && item.ok === false).length;
+  const summary = response.checks
+    .map((item) => `${item.ok ? "PASS" : "FAIL"}: ${item.label}${item.message ? ` (${item.message})` : ""}`)
+    .join(" | ");
+  setStatus(`Dry-run ${failed === 0 ? "passed" : "found issues"}. ${summary}`, failed === 0 ? "ok" : "error");
+}
+
+async function copySampleConfig(mode) {
+  clearDryRunDetails();
+  const pluginSample = [
+    "Sync Mode: Plugin Endpoint",
+    "InvenTree Base URL: https://inventree.local",
+    "API Token: <token>",
+    "Plugin Endpoint Path: /api/plugin/product-import/",
+    "Include image URL: true",
+    "Upload images: true"
+  ].join("\n");
+
+  const directSample = [
+    "Sync Mode: Direct InvenTree API",
+    "InvenTree Base URL: https://inventree.local",
+    "API Token: <token>",
+    "Part API Path: /api/part/",
+    "Supplier Part API Path: /api/company/part/",
+    "Stock Item API Path: /api/stock/",
+    "Default Category ID: 12",
+    "Default Supplier ID: 4",
+    "Default Stock Location ID: 7",
+    "Default Stock Quantity: 1",
+    "Sync supplier-part records: true",
+    "Create stock items: false"
+  ].join("\n");
+
+  const content = mode === "direct" ? directSample : pluginSample;
+  await navigator.clipboard.writeText(content);
+  setStatus(`${mode === "direct" ? "Direct" : "Plugin"} sample config copied to clipboard.`, "ok");
+}
+
 async function testPartIdPath() {
+  clearDryRunDetails();
   setStatus("Testing part ID response path against last response...");
   const response = await sendMessage({
     type: "testPartIdPath",
@@ -343,6 +493,30 @@ async function loadState() {
 }
 
 function wireEvents() {
+  els.helpBtn.addEventListener("click", () => {
+    if (els.helpPanel) {
+      els.helpPanel.open = true;
+      els.helpPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      setStatus("Help opened below. Review settings and examples.");
+    }
+  });
+
+  els.copyPluginExampleBtn.addEventListener("click", async () => {
+    try {
+      await copySampleConfig("plugin");
+    } catch (error) {
+      setStatus(String(error.message || error), "error");
+    }
+  });
+
+  els.copyDirectExampleBtn.addEventListener("click", async () => {
+    try {
+      await copySampleConfig("direct");
+    } catch (error) {
+      setStatus(String(error.message || error), "error");
+    }
+  });
+
   els.saveSettingsBtn.addEventListener("click", async () => {
     try {
       await saveSettings();
@@ -378,6 +552,14 @@ function wireEvents() {
   els.sendBtn.addEventListener("click", async () => {
     try {
       await sendToInventree();
+    } catch (error) {
+      setStatus(String(error.message || error), "error");
+    }
+  });
+
+  els.dryRunBtn.addEventListener("click", async () => {
+    try {
+      await runDirectDryRun();
     } catch (error) {
       setStatus(String(error.message || error), "error");
     }
