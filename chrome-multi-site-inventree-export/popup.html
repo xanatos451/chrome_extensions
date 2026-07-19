@@ -34,12 +34,25 @@
       padding: 12px;
     }
 
+    body.full-mode {
+      width: 100%;
+      min-width: 1100px;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 12px;
       box-shadow: 0 8px 24px rgba(50, 41, 28, 0.12);
+    }
+
+    body.full-mode .panel {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 18px;
     }
 
     h1 {
@@ -235,6 +248,44 @@
       padding: 8px 10px;
       font-size: 12px;
       font-weight: 700;
+
+    body.full-mode .preview {
+      max-height: 480px;
+      font-size: 12px;
+    }
+
+    body.full-mode .meta {
+      max-height: 160px;
+    }
+
+    body.full-mode .link-list {
+      max-height: 260px;
+    }
+
+    body.full-mode .help-body {
+      max-height: 520px;
+    }
+
+    body.full-mode th,
+    body.full-mode td {
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    .top-actions {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    body.full-mode .top-actions {
+      max-width: 420px;
+    }
+
+    body.full-mode #openFullPageBtn {
+      opacity: 0.65;
+    }
       background: #f8f2e6;
       border-bottom: 1px solid #e2d8c8;
       user-select: none;
@@ -324,8 +375,9 @@
         <button id="captureBtn" type="button">Capture Current Page</button>
         <button id="saveSettingsBtn" class="secondary" type="button">Save API Settings</button>
       </div>
-      <div style="margin-top:8px;">
+      <div class="top-actions">
         <button id="helpBtn" class="secondary" type="button">Help / Docs</button>
+        <button id="openFullPageBtn" class="secondary" type="button">Open Larger View</button>
       </div>
 
       <div class="label">Capture Source</div>

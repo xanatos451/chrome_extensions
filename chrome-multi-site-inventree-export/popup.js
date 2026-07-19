@@ -37,6 +37,7 @@ const els = {
   uploadImagesIfSupported: document.getElementById("uploadImagesIfSupported"),
   testPathBtn: document.getElementById("testPathBtn"),
   helpBtn: document.getElementById("helpBtn"),
+  openFullPageBtn: document.getElementById("openFullPageBtn"),
   helpPanel: document.getElementById("helpPanel"),
   copyPluginExampleBtn: document.getElementById("copyPluginExampleBtn"),
   copyDirectExampleBtn: document.getElementById("copyDirectExampleBtn"),
@@ -57,6 +58,20 @@ let lastCapture = null;
 let previewLinkedPages = [];
 let itemLabels = {};
 const selectedLinkedPages = new Set();
+
+function isFullMode() {
+  return new URLSearchParams(window.location.search).get("mode") === "full";
+}
+
+function initializeLayoutMode() {
+  if (!isFullMode()) return;
+  document.body.classList.add("full-mode");
+  document.title = "Multi-Site Inventory Exporter - Full View";
+  if (els.openFullPageBtn) {
+    els.openFullPageBtn.textContent = "Full View Open";
+    els.openFullPageBtn.disabled = true;
+  }
+}
 
 function setStatus(message, kind = "") {
   els.status.textContent = message;
@@ -493,6 +508,16 @@ async function loadState() {
 }
 
 function wireEvents() {
+  els.openFullPageBtn.addEventListener("click", async () => {
+    try {
+      const fullPageUrl = chrome.runtime.getURL("popup.html?mode=full");
+      await chrome.tabs.create({ url: fullPageUrl });
+      setStatus("Opened larger view in a new tab.", "ok");
+    } catch (error) {
+      setStatus(String(error.message || error), "error");
+    }
+  });
+
   els.helpBtn.addEventListener("click", () => {
     if (els.helpPanel) {
       els.helpPanel.open = true;
@@ -631,6 +656,7 @@ function wireEvents() {
   });
 }
 
+initializeLayoutMode();
 wireEvents();
 renderLinkedPagesSelection();
 loadState().catch((error) => {

@@ -55,6 +55,17 @@ test("loads popup UI and source options", async () => {
   await popupPage.close();
 });
 
+test("supports larger full-view mode in a tab", async () => {
+  const fullPage = await context.newPage();
+  await fullPage.goto(`chrome-extension://${extensionId}/popup.html?mode=full`);
+
+  await expect(fullPage.locator("body")).toHaveClass(/full-mode/);
+  await expect(fullPage.locator("#openFullPageBtn")).toBeDisabled();
+  await expect(fullPage.locator("#preview")).toBeVisible();
+
+  await fullPage.close();
+});
+
 test("saves and reloads settings from extension storage", async () => {
   const popupPage = await openPopupPage();
 
