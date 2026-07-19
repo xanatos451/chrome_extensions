@@ -140,6 +140,29 @@ async function handleMessage(message) {
       };
     }
 
+    case "previewCategoryAssignments": {
+      const capture = message?.capture;
+      if (!capture?.rows?.length) {
+        return { ok: false, error: "No rows available to preview." };
+      }
+
+      const incoming = sanitizeSettings(message?.settings || {});
+      const persisted = await getSettings();
+      const merged = { ...persisted, ...incoming };
+      if (!merged.inventreeUrl) {
+        return { ok: false, error: "InvenTree Base URL is required." };
+      }
+      if (!merged.inventreeToken) {
+        return { ok: false, error: "API token is required." };
+      }
+      const categoryId = parsePositiveInt(merged.inventreeDefaultCategoryId);
+      if (!categoryId) {
+        return { ok: false, error: "Default Category ID is required for category preview." };
+      }
+
+      return await previewCategoryAssignments(capture, merged, categoryId);
+    }
+
     case "fetchInventreeCategories": {
       const incoming = sanitizeSettings(message?.settings || {});
       const persisted = await getSettings();
@@ -680,6 +703,119 @@ async function fetchInventreeCategories(settings) {
       display_path: parts.filter(Boolean).join(" > ")
     };
   });
+}
+
+async function previewCategoryAssignments(capture, settings, defaultCategoryId) {
+  const exportObj = buildExportObject(capture, settings);
+  const items = Array.isArray(exportObj.items) ? exportObj.items : [];
+  const categories = await fetchInventreeCategories(settings);
+
+  const byId = new Map();
+  const byParent = new Map();
+
+  for (const row of categories) {
+    const id = parsePositiveInt(row?.pk ?? row?.id);
+    if (!id) continue;
+    byId.set(id, row);
+    const parentKey = String(parsePositiveInt(row?.parent) || "root");
+    const list = byParent.get(parentKey) || [];
+    list.push(row);
+    byParent.set(parentKey, list);
+  }
+
+  const defaultRow = byId.get(defaultCategoryId) || null;
+  const defaultLabel = String(defaultRow?.display_path || defaultRow?.name || `#${defaultCategoryId}`);
+
+  let simulatedId = -1;
+  let existingSegments = 0;
+  let createSegments = 0;
+  let usedDefaultOnly = 0;
+
+  const plans = items.slice(0, 25).map((item, idx) => {
+    let currentParentId = defaultCategoryId;
+    let currentPath = defaultLabel;
+    const steps = [];
+
+    const categoryText = String(item?.category_text || "").trim();
+    const subcategoryText = String(item?.subcategory_text || "").trim();
+    const chain = [];
+    if (categoryText) chain.push(categoryText);
+    if (subcategoryText && subcategoryText.toLowerCase() !== categoryText.toLowerCase()) {
+      chain.push(subcategoryText);
+    }
+
+    for (const segmentName of chain) {
+      const siblings = byParent.get(String(currentParentId)) || [];
+      const existing = siblings.find((row) => String(row?.name || "").trim().toLowerCase() === segmentName.toLowerCase());
+
+      if (existing) {
+        const existingId = parsePositiveInt(existing?.pk ?? existing?.id) || currentParentId;
+        currentParentId = existingId;
+        currentPath = String(existing?.display_path || `${currentPath} > ${segmentName}`);
+        steps.push({
+          action: "existing",
+          name: segmentName,
+          categoryId: existingId,
+          categoryPath: currentPath
+        });
+        existingSegments += 1;
+        continue;
+      }
+
+      simulatedId -= 1;
+      currentPath = currentPath ? `${currentPath} > ${segmentName}` : segmentName;
+      const createdRow = {
+        pk: simulatedId,
+        id: simulatedId,
+        name: segmentName,
+        parent: currentParentId,
+        display_path: currentPath
+      };
+      const siblingsAfterCreate = byParent.get(String(currentParentId)) || [];
+      siblingsAfterCreate.push(createdRow);
+      byParent.set(String(currentParentId), siblingsAfterCreate);
+      byId.set(simulatedId, createdRow);
+      currentParentId = simulatedId;
+
+      steps.push({
+        action: "create",
+        name: segmentName,
+        parentId: createdRow.parent,
+        categoryId: simulatedId,
+        categoryPath: currentPath
+      });
+      createSegments += 1;
+    }
+
+    if (chain.length === 0) {
+      usedDefaultOnly += 1;
+    }
+
+    return {
+      index: idx + 1,
+      itemName: String(item?.name || "").trim() || "Imported Product",
+      categoryText,
+      subcategoryText,
+      targetCategoryId: currentParentId,
+      targetCategoryPath: currentPath,
+      steps
+    };
+  });
+
+  return {
+    ok: true,
+    summary: {
+      totalItems: items.length,
+      previewedItems: plans.length,
+      existingSegments,
+      createSegments,
+      usedDefaultOnly,
+      defaultCategoryId,
+      defaultCategoryPath: defaultLabel
+    },
+    items: plans,
+    truncated: items.length > plans.length
+  };
 }
 
 async function upsertSupplierPartForDirectMode(partId, supplierId, item, settings) {

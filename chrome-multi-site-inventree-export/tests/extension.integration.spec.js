@@ -1,6 +1,7 @@
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const http = require("http");
 const { chromium, test, expect } = require("@playwright/test");
 
 const extensionPath = path.resolve(__dirname, "..");
@@ -8,6 +9,36 @@ const extensionPath = path.resolve(__dirname, "..");
 let context;
 let page;
 let extensionId;
+let mockInventreeBaseUrl;
+let mockInventreeServer;
+
+async function startMockInventreeServer() {
+  const categories = [
+    { pk: 12, name: "Hardware", parent: null },
+    { pk: 21, name: "Fasteners", parent: 12 },
+    { pk: 37, name: "Washers", parent: 21 },
+  ];
+
+  const server = http.createServer((req, res) => {
+    const reqUrl = new URL(req.url, "http://127.0.0.1");
+    if (req.method === "GET" && reqUrl.pathname === "/api/part/category/") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ count: categories.length, next: null, previous: null, results: categories }));
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ detail: "Not found" }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  return {
+    server,
+    baseUrl: `http://127.0.0.1:${port}`,
+  };
+}
 
 async function openPopupPage() {
   const popupPage = await context.newPage();
@@ -17,6 +48,10 @@ async function openPopupPage() {
 }
 
 test.beforeAll(async () => {
+  const mockServer = await startMockInventreeServer();
+  mockInventreeServer = mockServer.server;
+  mockInventreeBaseUrl = mockServer.baseUrl;
+
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "inventory-exporter-e2e-"));
 
   context = await chromium.launchPersistentContext(userDataDir, {
@@ -42,6 +77,9 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context?.close();
+  if (mockInventreeServer) {
+    await new Promise((resolve) => mockInventreeServer.close(resolve));
+  }
 });
 
 test("loads popup UI and source options", async () => {
@@ -168,6 +206,23 @@ test("opens help docs and shows quick start content", async () => {
   await expect(popupPage.locator("#helpPanel")).toHaveAttribute("open", "");
   await expect(popupPage.locator("#helpPanel")).toContainText("Quick Start");
   await expect(popupPage.locator("#helpPanel")).toContainText("Direct Mode Dry-Run Validation");
+
+  await popupPage.close();
+});
+
+test("fetches existing categories and updates default category picker", async () => {
+  const popupPage = await openPopupPage();
+
+  await popupPage.fill("#inventreeUrl", mockInventreeBaseUrl);
+  await popupPage.fill("#inventreeToken", "token-abc");
+  await popupPage.click("#fetchCategoriesBtn");
+
+  await expect(popupPage.locator("#status")).toContainText("Fetched 3 categories.");
+  await expect(popupPage.locator("#existingCategorySelect option")).toHaveCount(4);
+  await expect(popupPage.locator("#existingCategorySelect")).toContainText("Hardware > Fasteners (#21)");
+
+  await popupPage.selectOption("#existingCategorySelect", "21");
+  await expect(popupPage.locator("#inventreeDefaultCategoryId")).toHaveValue("21");
 
   await popupPage.close();
 });

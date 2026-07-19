@@ -418,6 +418,41 @@
       padding: 8px;
     }
 
+    .category-preview-wrap {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef8;
+      padding: 8px;
+      display: none;
+    }
+
+    .category-preview-wrap.visible {
+      display: block;
+    }
+
+    .category-preview-summary {
+      font-size: 11px;
+      color: #4a595f;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .category-preview-item {
+      font-size: 11px;
+      color: #2f454d;
+      margin-bottom: 6px;
+      line-height: 1.35;
+      border-bottom: 1px solid #ece4d8;
+      padding-bottom: 6px;
+    }
+
+    .category-preview-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+
     .mapped-preview-title {
       font-size: 11px;
       font-weight: 700;
@@ -521,6 +556,9 @@
             <option value="">Select existing category for default/root</option>
           </select>
         </div>
+        <div style="margin-top: 6px;">
+          <button id="previewCategoryAssignmentsBtn" class="secondary mini" type="button">Preview Category Plan</button>
+        </div>
         <div id="categoryPickerMeta" class="category-picker-meta">Fetch categories to pick an existing default/root category.</div>
       </div>
       <div class="grid">
@@ -613,6 +651,11 @@
     <div id="dryRunDetails" class="dryrun-wrap">
       <div class="dryrun-title">Direct Dry-Run Details</div>
       <div id="dryRunDetailsList"></div>
+    </div>
+    <div id="categoryPreviewDetails" class="category-preview-wrap">
+      <div class="dryrun-title">Category Assignment Preview</div>
+      <div id="categoryPreviewSummary" class="category-preview-summary"></div>
+      <div id="categoryPreviewList"></div>
     </div>
 
     <div class="section">

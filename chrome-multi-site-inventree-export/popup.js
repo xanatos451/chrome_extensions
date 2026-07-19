@@ -39,6 +39,7 @@ const els = {
   testPathBtn: document.getElementById("testPathBtn"),
   mappingTemplateScope: document.getElementById("mappingTemplateScope"),
   fetchCategoriesBtn: document.getElementById("fetchCategoriesBtn"),
+  previewCategoryAssignmentsBtn: document.getElementById("previewCategoryAssignmentsBtn"),
   existingCategorySelect: document.getElementById("existingCategorySelect"),
   categoryPickerMeta: document.getElementById("categoryPickerMeta"),
   helpBtn: document.getElementById("helpBtn"),
@@ -49,6 +50,9 @@ const els = {
   dryRunBtn: document.getElementById("dryRunBtn"),
   dryRunDetails: document.getElementById("dryRunDetails"),
   dryRunDetailsList: document.getElementById("dryRunDetailsList"),
+  categoryPreviewDetails: document.getElementById("categoryPreviewDetails"),
+  categoryPreviewSummary: document.getElementById("categoryPreviewSummary"),
+  categoryPreviewList: document.getElementById("categoryPreviewList"),
   saveSettingsBtn: document.getElementById("saveSettingsBtn"),
   captureBtn: document.getElementById("captureBtn"),
   sendBtn: document.getElementById("sendBtn"),
@@ -202,6 +206,13 @@ function clearDryRunDetails() {
   els.dryRunDetails.classList.remove("visible");
 }
 
+function clearCategoryPreviewDetails() {
+  if (!els.categoryPreviewDetails || !els.categoryPreviewSummary || !els.categoryPreviewList) return;
+  els.categoryPreviewSummary.textContent = "";
+  els.categoryPreviewList.innerHTML = "";
+  els.categoryPreviewDetails.classList.remove("visible");
+}
+
 function renderDryRunDetails(checks) {
   if (!els.dryRunDetails || !els.dryRunDetailsList) return;
   if (!Array.isArray(checks) || checks.length === 0) {
@@ -220,6 +231,43 @@ function renderDryRunDetails(checks) {
 
   els.dryRunDetailsList.innerHTML = html;
   els.dryRunDetails.classList.add("visible");
+}
+
+function renderCategoryPreviewDetails(payload) {
+  if (!els.categoryPreviewDetails || !els.categoryPreviewSummary || !els.categoryPreviewList) return;
+  const summary = payload?.summary || {};
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+
+  const summaryText = [
+    `Default root: ${summary.defaultCategoryPath || "-"} (#${summary.defaultCategoryId || "-"})`,
+    `Items previewed: ${summary.previewedItems || 0}${summary.totalItems > summary.previewedItems ? ` of ${summary.totalItems}` : ""}`,
+    `Existing segments: ${summary.existingSegments || 0}`,
+    `Would create segments: ${summary.createSegments || 0}`,
+    `Items using default only: ${summary.usedDefaultOnly || 0}`
+  ].join(" | ");
+  els.categoryPreviewSummary.textContent = summaryText;
+
+  if (items.length === 0) {
+    els.categoryPreviewList.innerHTML = '<div class="category-preview-item">No category plan rows to preview.</div>';
+    els.categoryPreviewDetails.classList.add("visible");
+    return;
+  }
+
+  const html = items
+    .map((item) => {
+      const steps = Array.isArray(item?.steps) ? item.steps : [];
+      const stepText = steps.length
+        ? steps.map((step) => `${step.action === "create" ? "create" : "existing"}: ${step.name}`).join(" -> ")
+        : "No mapped category/subcategory values; default root will be used.";
+      const itemName = escapeHtml(item?.itemName || "Imported Product");
+      const path = escapeHtml(item?.targetCategoryPath || "");
+      const targetId = escapeHtml(item?.targetCategoryId || "");
+      return `<div class="category-preview-item"><strong>${itemName}</strong><br/>Path: ${path}${targetId ? ` (#${targetId})` : ""}<br/>Steps: ${escapeHtml(stepText)}</div>`;
+    })
+    .join("");
+
+  els.categoryPreviewList.innerHTML = html;
+  els.categoryPreviewDetails.classList.add("visible");
 }
 
 function sendMessage(payload) {
@@ -507,6 +555,7 @@ function escapeHtml(value) {
 
 async function capturePage() {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   setStatus("Capturing product table from current page...");
   const response = await sendMessage({
     type: "capturePage",
@@ -526,6 +575,7 @@ async function capturePage() {
 
 async function previewLinkedPagesForCurrentPage() {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   setStatus("Discovering linked pages from current tab...");
   const response = await sendMessage({
     type: "previewLinkedPages",
@@ -548,6 +598,7 @@ async function previewLinkedPagesForCurrentPage() {
 
 async function exportData(format) {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   if (!lastCapture || !lastCapture.rows?.length) {
     throw new Error("No captured rows. Capture a page first.");
   }
@@ -569,6 +620,7 @@ async function exportData(format) {
 
 async function sendToInventree() {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   if (!lastCapture || !lastCapture.rows?.length) {
     throw new Error("No captured rows. Capture a page first.");
   }
@@ -606,6 +658,7 @@ async function sendToInventree() {
 }
 
 async function runDirectDryRun() {
+  clearCategoryPreviewDetails();
   await saveSettings();
   setStatus("Running direct mode dry-run validation...");
   const response = await sendMessage({
@@ -634,6 +687,7 @@ async function runDirectDryRun() {
 
 async function copySampleConfig(mode) {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   const pluginSample = [
     "Sync Mode: Plugin Endpoint",
     "InvenTree Base URL: https://inventree.local",
@@ -682,6 +736,7 @@ async function fetchInventreeCategoriesForPicker() {
 
 async function testPartIdPath() {
   clearDryRunDetails();
+  clearCategoryPreviewDetails();
   setStatus("Testing part ID response path against last response...");
   const response = await sendMessage({
     type: "testPartIdPath",
@@ -696,6 +751,30 @@ async function testPartIdPath() {
   const preview = ids.slice(0, 8).join(", ") || "none";
   const msg = `Path test: found ${ids.length} part ID(s). Sample: ${preview}`;
   setStatus(msg, ids.length > 0 ? "ok" : "");
+}
+
+async function previewCategoryAssignments() {
+  clearDryRunDetails();
+  if (!lastCapture || !lastCapture.rows?.length) {
+    throw new Error("No captured rows. Capture a page first.");
+  }
+
+  await saveSettings();
+  setStatus("Generating category assignment preview...");
+  const response = await sendMessage({
+    type: "previewCategoryAssignments",
+    capture: lastCapture,
+    settings: collectSettingsFromForm()
+  });
+
+  if (!response?.ok) {
+    throw new Error(response?.error || "Category preview failed");
+  }
+
+  renderCategoryPreviewDetails(response);
+  const creates = response?.summary?.createSegments || 0;
+  const previewed = response?.summary?.previewedItems || 0;
+  setStatus(`Category preview ready for ${previewed} item(s). Planned category creates: ${creates}.`, "ok");
 }
 
 async function loadState() {
@@ -744,6 +823,14 @@ function wireEvents() {
   els.fetchCategoriesBtn.addEventListener("click", async () => {
     try {
       await fetchInventreeCategoriesForPicker();
+    } catch (error) {
+      setStatus(String(error.message || error), "error");
+    }
+  });
+
+  els.previewCategoryAssignmentsBtn.addEventListener("click", async () => {
+    try {
+      await previewCategoryAssignments();
     } catch (error) {
       setStatus(String(error.message || error), "error");
     }
