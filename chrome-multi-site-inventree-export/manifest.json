@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Multi-Site Inventory Exporter",
+  "version": "1.0.0",
+  "description": "Capture product data from supplier catalog pages (McMaster-Carr, Bolt Depot) and Amazon order pages and export to files or send to an InvenTree endpoint.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://www.mcmaster.com/*",
+    "https://boltdepot.com/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

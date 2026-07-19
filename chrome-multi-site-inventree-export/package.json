@@ -1,0 +1,13 @@
+{
+  "name": "chrome-multi-site-inventree-export",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Integration tests for the Multi-Site Inventory Exporter Chrome extension",
+  "scripts": {
+    "test:integration": "playwright test",
+    "test:integration:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

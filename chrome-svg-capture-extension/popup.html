@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SVG Domain Capture</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 14px;
+      width: 320px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: #f3f6fb;
+      color: #142033;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 0 10px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0;
+      gap: 10px;
+    }
+
+    .row label {
+      font-size: 13px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid #b4c2d8;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 13px;
+      box-sizing: border-box;
+      background: #ffffff;
+      color: #142033;
+    }
+
+    textarea {
+      width: 100%;
+      border: 1px solid #b4c2d8;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+      box-sizing: border-box;
+      background: #ffffff;
+      color: #142033;
+      resize: vertical;
+      min-height: 58px;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .section-title {
+      font-size: 12px;
+      margin: 10px 0 6px;
+      color: #20385f;
+      font-weight: 600;
+    }
+
+    .type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      margin-bottom: 6px;
+    }
+
+    .type-grid label {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #1b2f4f;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: #1658d4;
+      color: #ffffff;
+      cursor: pointer;
+      font-size: 13px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #0f47af;
+    }
+
+    #status {
+      font-size: 12px;
+      margin-top: 8px;
+      color: #2f3d57;
+      min-height: 18px;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #4a5b79;
+      line-height: 1.3;
+    }
+
+    .stats {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #b9c7dc;
+      background: #ffffff;
+      font-size: 11px;
+      color: #233a60;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h1>SVG Domain Capture</h1>
+
+  <div class="row">
+    <label for="enabled">Extension enabled</label>
+    <input id="enabled" type="checkbox" />
+  </div>
+
+  <div class="row">
+    <label for="captureNetwork">Capture network image URLs</label>
+    <input id="captureNetwork" type="checkbox" />
+  </div>
+
+  <div class="row">
+    <label for="captureInline">Capture inline SVG from page</label>
+    <input id="captureInline" type="checkbox" />
+  </div>
+
+  <label for="rootFolder">Root folder inside Downloads</label>
+  <input id="rootFolder" type="text" placeholder="svg-capture" />
+
+  <div class="section-title">Auto-capture file types</div>
+  <div class="type-grid">
+    <label><input type="checkbox" name="captureFileTypes" value="svg" /> svg</label>
+    <label><input type="checkbox" name="captureFileTypes" value="png" /> png</label>
+    <label><input type="checkbox" name="captureFileTypes" value="jpg" /> jpg</label>
+    <label><input type="checkbox" name="captureFileTypes" value="jpeg" /> jpeg</label>
+    <label><input type="checkbox" name="captureFileTypes" value="gif" /> gif</label>
+    <label><input type="checkbox" name="captureFileTypes" value="webp" /> webp</label>
+    <label><input type="checkbox" name="captureFileTypes" value="avif" /> avif</label>
+    <label><input type="checkbox" name="captureFileTypes" value="bmp" /> bmp</label>
+    <label><input type="checkbox" name="captureFileTypes" value="ico" /> ico</label>
+    <label><input type="checkbox" name="captureFileTypes" value="tif" /> tif</label>
+    <label><input type="checkbox" name="captureFileTypes" value="tiff" /> tiff</label>
+  </div>
+
+  <div class="row">
+    <label for="allowlistEnabled">Allowlist mode</label>
+    <input id="allowlistEnabled" type="checkbox" />
+  </div>
+
+  <div class="section-title">Allowlist domains (one per line)</div>
+  <textarea id="allowlistDomains" placeholder="mcmaster.com\nexample.com"></textarea>
+
+  <div class="section-title">Denylist domains (one per line)</div>
+  <textarea id="denylistDomains" placeholder="ads.example.com\ncdn.blockedsite.com"></textarea>
+
+  <button id="saveBtn" type="button">Save Settings</button>
+  <button id="captureBtn" type="button">Capture Current Page Inline SVG Now</button>
+  <button id="refreshStatsBtn" type="button">Refresh Capture Stats</button>
+
+  <div id="status"></div>
+  <div id="stats" class="stats">Stats not loaded yet.</div>
+  <div class="hint">
+    Files are saved under Chrome's download location. If you want your Images/Pictures folder,
+    set Chrome's default download directory to that folder.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

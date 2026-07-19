@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "SVG Domain Capture",
+  "version": "1.0.0",
+  "description": "Capture SVG files from opened pages and save them into domain-based folders.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "tabs",
+    "scripting",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

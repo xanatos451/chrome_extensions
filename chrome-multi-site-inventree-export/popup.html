@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-Site Inventory Exporter</title>
+  <style>
+    :root {
+      --bg-1: #f4f2ea;
+      --bg-2: #e4ddce;
+      --panel: #fffdf6;
+      --ink: #1f2a31;
+      --muted: #56646d;
+      --accent: #9d4f2e;
+      --accent-2: #78401e;
+      --line: #d0c4b0;
+      --ok: #1f6a49;
+      --err: #8a1e2b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      width: 380px;
+      min-height: 560px;
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(80% 60% at 100% 0%, #f7efe1 0%, rgba(247, 239, 225, 0) 70%),
+        linear-gradient(170deg, var(--bg-1), var(--bg-2));
+      padding: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 24px rgba(50, 41, 28, 0.12);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .section {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #4a595f;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      border: 1px solid #beaf97;
+      border-radius: 8px;
+      background: #fffef9;
+      padding: 8px;
+      color: var(--ink);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    input[type="number"],
+    select {
+      width: 100%;
+      border: 1px solid #beaf97;
+      border-radius: 8px;
+      background: #fffef9;
+      padding: 8px;
+      color: var(--ink);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #30444a;
+      margin: 6px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.03);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+    }
+
+    .secondary {
+      background: linear-gradient(180deg, #6b7f8c, #4a5d68);
+    }
+
+    .status {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--err);
+    }
+
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .meta {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #37464f;
+      white-space: pre-wrap;
+      max-height: 90px;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef8;
+    }
+
+    .preview {
+      margin-top: 8px;
+      max-height: 160px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef9;
+      font-size: 11px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #e2d8c8;
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8f2e6;
+      font-weight: 600;
+    }
+
+    .link-list {
+      margin-top: 8px;
+      max-height: 130px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffef8;
+      padding: 6px;
+    }
+
+    .link-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 11px;
+      color: #2f454d;
+      padding: 4px 2px;
+      border-bottom: 1px solid #ece4d8;
+      word-break: break-all;
+    }
+
+    .link-item:last-child {
+      border-bottom: none;
+    }
+
+    .mini {
+      padding: 7px 8px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Multi-Site Inventory Exporter</h1>
+    <div class="subtitle">Capture table rows from supplier catalog pages and export or send.</div>
+
+    <div class="section">
+      <div class="grid">
+        <button id="captureBtn" type="button">Capture Current Page</button>
+        <button id="saveSettingsBtn" class="secondary" type="button">Save API Settings</button>
+      </div>
+
+      <div class="label">Capture Source</div>
+      <select id="sourceMode">
+        <option value="auto">Auto Detect</option>
+        <option value="mcmaster">McMaster-Carr</option>
+        <option value="boltdepot">Bolt Depot</option>
+        <option value="amazon">Amazon Orders</option>
+      </select>
+
+      <label class="check"><input id="crawlLinkedPages" type="checkbox" /> Scrape linked / child pages (Bolt Depot parent pages, McMaster category pages)</label>
+      <input id="maxLinkedPages" type="number" min="1" max="80" placeholder="Max linked pages to crawl (default 20)" />
+
+      <div class="grid">
+        <button id="previewLinksBtn" class="secondary mini" type="button">Preview Items / Linked Pages</button>
+        <button id="selectAllLinksBtn" class="secondary mini" type="button">Select All</button>
+      </div>
+      <input id="linkedPagesFilter" type="text" placeholder="Filter by name or URL (e.g. 1_4-20, B08N5, coarse)" />
+      <div class="grid">
+        <button id="selectFilteredLinksBtn" class="secondary mini" type="button">Select Filtered</button>
+        <button id="clearFilteredLinksBtn" class="secondary mini" type="button">Clear Filtered</button>
+      </div>
+      <div style="margin-top: 6px;">
+        <button id="invertFilteredLinksBtn" class="secondary mini" type="button">Invert Visible</button>
+      </div>
+      <div style="margin-top: 6px;">
+        <button id="clearAllLinksBtn" class="secondary mini" type="button">Clear All</button>
+      </div>
+      <div id="linkedPagesSummary" class="meta">Linked page preview not loaded.</div>
+      <div id="linkedPagesList" class="link-list"></div>
+
+      <div id="captureMeta" class="meta">No capture yet.</div>
+    </div>
+
+    <div class="section">
+      <div class="label">InvenTree Base URL</div>
+      <input id="inventreeUrl" type="text" placeholder="https://inventree.example.com" />
+
+      <div class="label">API Token</div>
+      <input id="inventreeToken" type="password" placeholder="Token value" />
+
+      <div class="label">Endpoint Path</div>
+      <input id="inventreeEndpointPath" type="text" placeholder="/api/plugin/product-import/" />
+
+      <div class="label">Header Mapping Hints</div>
+      <div class="grid">
+        <input id="nameHeaderHint" type="text" placeholder="Name header (optional)" />
+        <input id="descriptionHeaderHint" type="text" placeholder="Description header (optional)" />
+      </div>
+      <div class="grid">
+        <input id="mpnHeaderHint" type="text" placeholder="MPN header (optional)" />
+        <input id="supplierPnHeaderHint" type="text" placeholder="Supplier PN header (optional)" />
+      </div>
+      <div class="grid">
+        <input id="imageHeaderHint" type="text" placeholder="Image URL header (optional)" />
+        <input id="partImageUploadPath" type="text" placeholder="/api/part/{id}/upload/" />
+      </div>
+      <div class="grid">
+        <input id="partIdResponsePath" type="text" placeholder="Part ID response path (e.g. created_parts[].id)" />
+        <button id="testPathBtn" class="secondary" type="button">Test Path</button>
+      </div>
+
+      <div class="label">Existing Match Strategy</div>
+      <select id="existingMatchStrategy">
+        <option value="skip">Skip matching existing entries</option>
+        <option value="update">Update matching existing entries</option>
+      </select>
+
+      <label class="check"><input id="includeImageUrls" type="checkbox" /> Include image URL in exported/sent items</label>
+      <label class="check"><input id="uploadImagesIfSupported" type="checkbox" /> Upload images to InvenTree if part IDs are returned</label>
+
+      <div class="grid">
+        <button id="sendBtn" type="button">Send To InvenTree</button>
+        <button id="jsonBtn" class="secondary" type="button">Download JSON</button>
+      </div>
+      <div style="margin-top: 8px;">
+        <button id="csvBtn" class="secondary" type="button">Download CSV</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="section">
+      <div class="label">Preview (first 5 rows)</div>
+      <div class="preview" id="preview"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
