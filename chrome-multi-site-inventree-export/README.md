@@ -44,6 +44,15 @@ npm install
 npm run test:integration
 ```
 
+From the workspace root (using `just`):
+
+```bash
+just ci-install
+just ci-test
+just validate
+just ci
+```
+
 Notes:
 
 - Tests launch Chromium with the extension loaded.
