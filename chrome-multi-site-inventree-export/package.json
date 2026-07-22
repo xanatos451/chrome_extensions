@@ -4,6 +4,7 @@
   "private": true,
   "description": "Integration tests for the Multi-Site Inventory Exporter Chrome extension",
   "scripts": {
+    "validate": "npm run test:integration",
     "test:integration": "playwright test",
     "test:integration:headed": "playwright test --headed"
   },
