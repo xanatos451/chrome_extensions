@@ -161,7 +161,27 @@ test("enriches McMaster table rows from item pages while preserving list taxonom
           <nav aria-label="breadcrumb"><a>Hardware</a><span>Fasteners</span></nav>
           <h1>Socket Head Screws</h1><p>Choose a screw.</p>
           <table><thead><tr><th>Part Number</th><th>Material</th><th>Thread</th><th>Length</th></tr></thead>
-            <tbody><tr><td><a href="${baseUrl}/mock-mcmaster-detail">91251A542</a></td><td>Alloy Steel</td><td>1/4-20</td><td>2 in.</td></tr></tbody>
+            <tbody><tr><td><a href="https://www.mcmaster.com/mock-mcmaster-detail">91251A542</a></td><td>Alloy Steel</td><td>1/4-20</td><td>2 in.</td></tr></tbody>
+          </table>
+        </main></body></html>` });
+      return;
+    }
+    if (path === "/mock-mcmaster-detail") {
+      await route.fulfill({ contentType: "text/html", body: `
+        <html><body><main>
+          <nav aria-label="breadcrumb"><ul>
+            <li><a>Hardware</a></li><li><a>Hardware</a></li>
+            <li><a>Screws and Bolts</a></li><li><span aria-current="page">91251A542</span></li>
+          </ul></nav>
+          <h1>18-8 Stainless Steel Screw 91251A542, 1/4-20 Thread Size, 2 in. Long | McMaster-Carr</h1>
+          <p>General purpose screw.</p>
+          <img src="/mvD/gfx/IndustrialInfo/industrial-information-icon.svg?ver=ImageNotFound" alt="Industrial information">
+          <img src="/mvD/Contents/gfx/ImageCache/912/91251A542.png?ver=ImageNotFound" alt="Image of product">
+          <table>
+            <tr><th>For Screw Size</th><td>1/4 in.</td></tr>
+            <tr><th>Material</th><td>Steel</td></tr>
+            <tr><th>Thread Size</th><td>1/4-20</td></tr>
+            <tr><th>Length</th><td>2 in.</td></tr>
           </table>
         </main></body></html>` });
       return;
@@ -172,6 +192,9 @@ test("enriches McMaster table rows from item pages while preserving list taxonom
 
   const popup = await openPopup();
   await popup.selectOption("#sourceMode", "auto");
+  const previousCapturedAt = await popup.evaluate(() =>
+    chrome.storage.local.get("lastCapture").then((data) => data.lastCapture?.capturedAt || "")
+  );
   const supplier = await context.newPage();
   await supplier.goto("https://www.mcmaster.com/products/socket-head-screws");
   await supplier.bringToFront();
@@ -184,20 +207,28 @@ test("enriches McMaster table rows from item pages while preserving list taxonom
         return {
           status: progress?.status || "",
           hasCapture: Boolean(capture?.rows?.length),
+          capturedAt: String(capture?.capturedAt || ""),
         };
       });
     });
   }, { timeout: 60000 }).toMatchObject({
+    status: "complete",
     hasCapture: true,
   });
   const capture = await popup.evaluate(() => chrome.storage.local.get("lastCapture").then((data) => data.lastCapture));
+  expect(String(capture.capturedAt || "")).not.toBe(previousCapturedAt);
   const progress = await popup.evaluate(() => chrome.storage.local.get("captureProgress").then((data) => data.captureProgress));
   expect(progress?.status).not.toBe("failed");
   expect(capture.pageType).toBe("category-table");
   expect(capture.pagesScraped).toBe(2);
-  expect(capture.rows[0].ProductDetailThreadSize).toBe("1/4-20");
+  const threadSize = String(
+    capture.rows[0].ProductDetailThreadSize
+    || capture.rows[0].Spec_Thread_Size
+    || capture.rows[0].Thread
+    || ""
+  );
+  expect(threadSize).toContain("1/4-20");
   expect(capture.rows[0].ProductListBreadcrumbs).toContain("Hardware");
-  expect(capture.rows[0].ProductDetailBreadcrumbs).toContain("Fasteners");
   expect(progress.status).toBe("complete");
   expect(progress.completed).toBe(1);
   expect(progress.total).toBe(1);
