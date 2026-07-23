@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,6 +11,9 @@ from .mapping import map_row, preview_rows
 from .planning import build_import_plan
 from .inspection import display_value, field_catalog, inspect_field, ordered_fields
 from .serializers import CaptureImportSerializer, MappingProfileSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 class CaptureListCreateView(generics.ListCreateAPIView):
@@ -179,9 +184,10 @@ class ImportPlanView(APIView):
                 supplier_lookup,
                 category_lookup,
             )
-        except Exception as exc:
+        except Exception:
+            logger.exception("Failed to build import plan for capture_id=%s", capture.pk)
             return Response(
-                {"detail": f"Could not query existing InvenTree identifiers: {exc}"},
+                {"detail": "Could not query existing InvenTree identifiers."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
@@ -206,9 +212,10 @@ class CreateCaptureCategoriesView(APIView):
         try:
             from part.models import PartCategory
             from users.permissions import check_user_permission
-        except Exception as exc:
+        except Exception:
+            logger.exception("Failed to load category permissions during create-categories request")
             return Response(
-                {"detail": f"Could not load InvenTree category permissions: {exc}"},
+                {"detail": "Could not load InvenTree category permissions."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         if not check_user_permission(request.user, PartCategory, "add"):
@@ -286,9 +293,10 @@ class CreateCaptureCategoriesView(APIView):
                         parent = category
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
-        except Exception as exc:
+        except Exception:
+            logger.exception("Failed to create categories for capture_id=%s", capture.pk)
             return Response(
-                {"detail": f"Could not create InvenTree categories: {exc}"},
+                {"detail": "Could not create InvenTree categories."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 

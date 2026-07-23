@@ -39,7 +39,7 @@ async function setCaptureProgress(progress) {
   await chrome.action.setBadgeBackgroundColor({ color: badgeColor });
   await chrome.action.setBadgeText({ text: badgeText });
   await chrome.action.setTitle({
-    title: state.message || "Multi-Site Inventory Exporter"
+    title: state.message || "Multi-Site Inventory Capture"
   });
   return state;
 }

@@ -44,7 +44,8 @@ def checked_output_dir(raw_path: Path) -> Path:
     allowed = (
         output != PLUGIN_ROOT
         and output != WORKSPACE_ROOT
-        and (PLUGIN_ROOT in output.parents or ARTIFACT_ROOT in output.parents or output == ARTIFACT_ROOT)
+        and output != ARTIFACT_ROOT
+        and (PLUGIN_ROOT in output.parents or ARTIFACT_ROOT in output.parents)
     )
     if not allowed:
         raise SystemExit("Output directory must be under the plugin project or workspace .artifacts directory.")

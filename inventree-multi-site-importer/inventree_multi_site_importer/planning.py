@@ -7,15 +7,18 @@ from urllib.parse import urlparse
 
 
 def _text(value):
-    return str(value or "").strip()
+    return "" if value is None else str(value).strip()
 
 
 def _parameters(item):
-    return {
-        key.removeprefix("parameter."): _text(value)
-        for key, value in (item or {}).items()
-        if str(key).startswith("parameter.") and _text(value)
-    }
+    parameters = {}
+    for key, value in (item or {}).items():
+        if not str(key).startswith("parameter."):
+            continue
+        text_value = _text(value)
+        if text_value:
+            parameters[key.removeprefix("parameter.")] = text_value
+    return parameters
 
 
 def _valid_http_url(value):
