@@ -176,7 +176,10 @@ test("enriches McMaster table rows from item pages while preserving list taxonom
   await supplier.goto("https://www.mcmaster.com/products/socket-head-screws");
   await supplier.bringToFront();
   await popup.evaluate(() => document.querySelector("#captureBtn").click());
-  await expect(popup.locator("#status")).toContainText("Captured 1 row(s)");
+  await expect.poll(async () => {
+    const progress = await popup.evaluate(() => chrome.storage.local.get("captureProgress").then((data) => data.captureProgress));
+    return progress?.status || "";
+  }, { timeout: 30000 }).toBe("complete");
   const capture = await popup.evaluate(() => chrome.storage.local.get("lastCapture").then((data) => data.lastCapture));
   expect(capture.pageType).toBe("category-table");
   expect(capture.pagesScraped).toBe(2);
