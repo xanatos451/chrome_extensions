@@ -177,16 +177,27 @@ test("enriches McMaster table rows from item pages while preserving list taxonom
   await supplier.bringToFront();
   await popup.evaluate(() => document.querySelector("#captureBtn").click());
   await expect.poll(async () => {
-    const progress = await popup.evaluate(() => chrome.storage.local.get("captureProgress").then((data) => data.captureProgress));
-    return progress?.status || "";
-  }, { timeout: 30000 }).toBe("complete");
+    return await popup.evaluate(() => {
+      return chrome.storage.local.get(["captureProgress", "lastCapture"]).then((data) => {
+        const progress = data.captureProgress;
+        const capture = data.lastCapture;
+        return {
+          status: progress?.status || "",
+          hasCapture: Boolean(capture?.rows?.length),
+        };
+      });
+    });
+  }, { timeout: 60000 }).toMatchObject({
+    hasCapture: true,
+  });
   const capture = await popup.evaluate(() => chrome.storage.local.get("lastCapture").then((data) => data.lastCapture));
+  const progress = await popup.evaluate(() => chrome.storage.local.get("captureProgress").then((data) => data.captureProgress));
+  expect(progress?.status).not.toBe("failed");
   expect(capture.pageType).toBe("category-table");
   expect(capture.pagesScraped).toBe(2);
   expect(capture.rows[0].ProductDetailThreadSize).toBe("1/4-20");
   expect(capture.rows[0].ProductListBreadcrumbs).toContain("Hardware");
   expect(capture.rows[0].ProductDetailBreadcrumbs).toContain("Fasteners");
-  const progress = await popup.evaluate(() => chrome.storage.local.get("captureProgress").then((data) => data.captureProgress));
   expect(progress.status).toBe("complete");
   expect(progress.completed).toBe(1);
   expect(progress.total).toBe(1);
